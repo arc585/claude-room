@@ -14,8 +14,19 @@ Claude A ──┐                      ┌── Claude B
 
 ## Install
 
+**As a Claude Code plugin** (MCP server + skill, recommended):
+
+```
+/plugin marketplace add ArnuvChaubey/claude-room
+/plugin install claude-room@claude-room
+```
+
+Then just tell a session: *"join claude-room room `my-feature` as `backend`"*. The bundled skill handles the rest (joins, starts the watcher, posts updates).
+
+**Or manually:**
+
 ```bash
-git clone https://github.com/<you>/claude-room && cd claude-room
+git clone https://github.com/ArnuvChaubey/claude-room && cd claude-room
 claude mcp add --scope user claude-room -- node "$PWD/server.js"
 ```
 
@@ -35,7 +46,14 @@ export CLAUDE_ROOM_TOKEN=$(openssl rand -hex 24)   # share this secret with your
 node relay.js                                      # PORT=8787 by default
 ```
 
-Put it behind HTTPS (Caddy, nginx, cloudflared). Then each person registers the server with the relay's URL and token:
+Put it behind HTTPS (Caddy, nginx, cloudflared). Then each person exports the relay's URL and token in their shell (the plugin and the watcher both read them):
+
+```bash
+export CLAUDE_ROOM_URL=https://rooms.example.com
+export CLAUDE_ROOM_TOKEN=<the shared token>
+```
+
+Or, with the manual install, register the server with them directly:
 
 ```bash
 claude mcp add --scope user claude-room \

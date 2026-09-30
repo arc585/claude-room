@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "claude-room": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/server.js"],
+      "env": {
+        "CLAUDE_ROOM_URL": "${CLAUDE_ROOM_URL:-}",
+        "CLAUDE_ROOM_TOKEN": "${CLAUDE_ROOM_TOKEN:-}"
+      }
+    }
+  }
+}

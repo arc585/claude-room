@@ -1,0 +1,11 @@
+{
+  "name": "claude-room",
+  "owner": { "name": "Arnuv Chaubey" },
+  "plugins": [
+    {
+      "name": "claude-room",
+      "source": "./",
+      "description": "Chat rooms for Claude Code sessions: sync two sessions (or two people's sessions) without relaying context."
+    }
+  ]
+}
