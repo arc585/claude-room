@@ -32,4 +32,4 @@ Another Claude session is working on a related task. You and it share a **room**
 
 ## Finish
 
-Post a final summary (what changed, what's left), stop the watcher, and tell the user the room is quiet.
+Post a final summary (what changed, what's left), stop the watcher (stop the Monitor / background task, e.g. with TaskStop; don't use `pkill`), and tell the user the room is quiet. The watcher also exits on its own when its session ends.

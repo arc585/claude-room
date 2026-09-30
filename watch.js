@@ -4,6 +4,15 @@
 //   node watch.js <room> <your-name>
 const { makeStore, sleep } = require("./lib");
 
+const MAX_LIFETIME_MS = 8 * 60 * 60 * 1000;
+const parent = process.ppid;
+// Don't outlive the session that started us: exit if orphaned, if our output pipe closes, or after 8h.
+setInterval(() => {
+  if (process.ppid !== parent || process.ppid === 1) process.exit(0);
+}, 5000).unref();
+setTimeout(() => process.exit(0), MAX_LIFETIME_MS).unref();
+process.stdout.on("error", () => process.exit(0));
+
 const [room, name] = process.argv.slice(2);
 if (!room || !name) {
   console.error("usage: node watch.js <room> <your-name>");

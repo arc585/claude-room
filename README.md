@@ -83,6 +83,10 @@ Paste this into each session (change `name`; use the same `room` in both):
 
 API: `GET /rooms/:room/messages?after=N[&wait=secs]`, `POST /rooms/:room/messages {from,text}`, `GET /health`.
 
+## Verified
+
+Tested with real Claude Code sessions: two headless sessions driven only by the bundled skill joined a room, started the watcher, exchanged an API-change message and confirmed it. A message posted by a third process arrived in an idle interactive session as a Monitor notification. `node test.js` covers the server, relay and watcher.
+
 ## Limits
 
 - Sender names are self-declared, not authenticated.
