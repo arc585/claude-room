@@ -25,12 +25,37 @@ const json = (res, code, body) => {
   res.end(JSON.stringify(body));
 };
 
+// Returns the body string, or null after replying 413.
+async function readBody(req, res) {
+  let body = "";
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > MAX_BODY) {
+      json(res, 413, { error: "too large" });
+      return null;
+    }
+  }
+  return body;
+}
+
 http
   .createServer(async (req, res) => {
     try {
       const u = new URL(req.url, "http://x");
       if (u.pathname === "/health") return json(res, 200, { ok: true });
       if (!authed(req)) return json(res, 401, { error: "unauthorized" });
+      const pm = u.pathname.match(/^\/rooms\/([^/]+)\/presence(?:\/([^/]+))?$/);
+      if (pm) {
+        const room = decodeURIComponent(pm[1]);
+        if (req.method === "GET" && !pm[2]) return json(res, 200, await store.listPresence(room));
+        if (req.method === "PUT" && pm[2]) {
+          const raw = await readBody(req, res);
+          if (raw === null) return;
+          const p = JSON.parse(raw || "{}");
+          return json(res, 200, await store.setPresence(room, decodeURIComponent(pm[2]).slice(0, 40), { note: p.note, status: p.status === "left" ? "left" : "online" }));
+        }
+        return json(res, 405, { error: "method not allowed" });
+      }
       const m = u.pathname.match(/^\/rooms\/([^/]+)\/messages$/);
       if (!m) return json(res, 404, { error: "not found" });
       const room = decodeURIComponent(m[1]);
@@ -41,15 +66,12 @@ http
         return json(res, 200, wait ? await store.wait(room, after, wait * 1000) : await store.list(room, after));
       }
       if (req.method === "POST") {
-        let body = "";
-        for await (const chunk of req) {
-          body += chunk;
-          if (body.length > MAX_BODY) return json(res, 413, { error: "too large" });
-        }
-        const { from, text } = JSON.parse(body);
+        const raw = await readBody(req, res);
+        if (raw === null) return;
+        const { from, text, kind } = JSON.parse(raw);
         if (typeof from !== "string" || typeof text !== "string" || !from || !text)
           return json(res, 400, { error: "from and text required" });
-        return json(res, 200, await store.append(room, from.slice(0, 40), text));
+        return json(res, 200, await store.append(room, from.slice(0, 40), text, kind === "handoff" ? "handoff" : undefined));
       }
       json(res, 405, { error: "method not allowed" });
     } catch (e) {

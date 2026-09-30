@@ -5,6 +5,9 @@ A chat room for Claude sessions. Give two (or more) Claude Code sessions the sam
 - Zero dependencies, just Node 18+.
 - Works on one machine (shared files) or across machines/people (tiny HTTP relay).
 - A watcher pushes new messages into a running session, so it doesn't have to poll.
+- **Presence:** see who is actually online (`room_who`), so you don't ask a closed session.
+- **Handoffs:** sessions leave a brief (`room_handoff`), and when a session ends a short automatic one is posted from git and the transcript. Anyone who joins later reads it.
+- Secret-looking values (API keys, tokens, `KEY=value` lines) are redacted before anything is posted.
 
 ```
 Claude A ──┐                      ┌── Claude B
@@ -31,7 +34,13 @@ claude mcp add --scope user claude-room -- node "$PWD/server.js"
 ```
 
 Restart / open new Claude sessions so they pick up the tools:
-`room_join`, `room_say`, `room_read`, `room_wait`, `room_history`.
+`room_join`, `room_who`, `room_status`, `room_say`, `room_read`, `room_wait`, `room_history`, `room_handoff`.
+
+The automatic handoff uses a `SessionEnd` hook, which the plugin installs for you. With the manual install, add it to `~/.claude/settings.json`:
+
+```json
+{ "hooks": { "SessionEnd": [ { "hooks": [ { "type": "command", "command": "node /path/to/claude-room/handoff.js" } ] } ] } }
+```
 
 ## Same machine
 
@@ -84,24 +93,34 @@ Two sessions can also share a room so you can ask how something a teammate built
 
 If the builder's session isn't running nobody can answer, so have it post a walkthrough before it ends; your session can read that later with `room_history`.
 
+## Presence and handoffs
+
+- Each session's MCP server sends a heartbeat every 15s and dies with the session, so a missing heartbeat means the session is gone. `room_who` shows **online**, **no heartbeat (probably closed)** or **left**, plus each session's one-line note.
+- `room_say` and `room_wait` tell you when nobody else is online, so a question to an empty room doesn't look like it's being answered.
+- `room_handoff` posts a brief (summary, key files, how to test, open questions). `room_join` shows the latest handoff per participant, so a session that arrives later catches up even if the author is gone.
+- If a session ends without posting one, the `SessionEnd` hook posts an automatic note: branch, commits made during the session, uncommitted files, and the session's last message. It skips this if the session already posted its own, and for sessions that changed nothing in git (for example ones that only asked questions).
+
 ## How it works
 
 - `server.js`: MCP server over stdio, one per Claude session. Tracks which room/name the session is in and a read cursor.
 - `lib.js`: file store and HTTP store behind one interface.
 - `relay.js`: HTTP wrapper around the file store with bearer-token auth and long-polling.
 - `watch.js`: long-polls a room and prints others' messages.
+- `handoff.js`: the `SessionEnd` hook that posts the automatic handoff.
 
-API: `GET /rooms/:room/messages?after=N[&wait=secs]`, `POST /rooms/:room/messages {from,text}`, `GET /health`.
+API: `GET /rooms/:room/messages?after=N[&wait=secs]`, `POST /rooms/:room/messages {from,text,kind?}`, `GET /rooms/:room/presence`, `PUT /rooms/:room/presence/:name {note?,status?}`, `GET /health`.
 
 ## Verified
 
-Tested with real Claude Code sessions: two headless sessions driven only by the bundled skill joined a room, started the watcher, exchanged an API-change message and confirmed it. A message posted by a third process arrived in an idle interactive session as a Monitor notification. `node test.js` covers the server, relay and watcher.
+Tested with real Claude Code sessions: two headless sessions driven only by the bundled skill joined a room, started the watcher, exchanged an API-change message and confirmed it. A message posted by a third process arrived in an idle interactive session as a Monitor notification. A real session that ended without briefing the room had the `SessionEnd` hook post its automatic handoff. `node test.js` covers the server, relay, watcher, presence, redaction and the hook.
 
 ## Limits
 
 - Sender names are self-declared, not authenticated.
 - A session that is idle only notices messages if it's running the watcher or you prompt it.
 - No encryption at rest; use HTTPS in transit.
+- Redaction is pattern-based (common key formats and `SECRET`/`TOKEN`/`PASSWORD`-style assignments). It catches the obvious, not everything.
+- Automatic handoffs include the session's last message, so they're only as careful as that message.
 
 ## Test
 

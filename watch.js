@@ -51,7 +51,7 @@ if (!room || !name) {
       warned = false;
       for (const m of msgs) {
         cursor = m.id;
-        if (m.from === name || m.from === "system") continue;
+        if (m.from === name) continue;
         console.log(`[room ${room}] ${m.from}: ${m.text.replace(/\s*\n\s*/g, " ⏎ ")}`);
       }
     } catch (e) {

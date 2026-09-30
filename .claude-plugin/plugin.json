@@ -1,9 +1,15 @@
 {
   "name": "claude-room",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A chat room for Claude Code sessions: join a room and sessions sync with each other, so you stop relaying context.",
-  "author": { "name": "Arnuv Chaubey" },
+  "author": {
+    "name": "Arnuv Chaubey"
+  },
   "license": "MIT",
   "repository": "https://github.com/arc585/claude-room",
-  "keywords": ["mcp", "multi-agent", "sync"]
+  "keywords": [
+    "mcp",
+    "multi-agent",
+    "sync"
+  ]
 }

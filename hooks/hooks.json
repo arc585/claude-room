@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/handoff.js\"", "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}
