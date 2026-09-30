@@ -7,8 +7,18 @@ const { makeStore, sleep } = require("./lib");
 const MAX_LIFETIME_MS = 8 * 60 * 60 * 1000;
 const parent = process.ppid;
 // Don't outlive the session that started us: exit if orphaned, if our output pipe closes, or after 8h.
+const { execFileSync } = require("child_process");
+// Session harnesses often start us via a wrapper shell that can itself be orphaned (ppid 1),
+// so check the parent's parent too.
+const parentIsOrphaned = () => {
+  try {
+    return execFileSync("ps", ["-o", "ppid=", "-p", String(parent)], { encoding: "utf8" }).trim() === "1";
+  } catch {
+    return true; // parent is gone
+  }
+};
 setInterval(() => {
-  if (process.ppid !== parent || process.ppid === 1) process.exit(0);
+  if (process.ppid !== parent || parent === 1 || parentIsOrphaned()) process.exit(0);
 }, 5000).unref();
 setTimeout(() => process.exit(0), MAX_LIFETIME_MS).unref();
 process.stdout.on("error", () => process.exit(0));

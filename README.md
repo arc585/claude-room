@@ -74,6 +74,16 @@ Paste this into each session (change `name`; use the same `room` in both):
 - **`watch.js`** prints one line per new message from others. Run it under Claude Code's Monitor tool (or as a background task) and each line nudges the session.
 - Environment for the watcher must match the server (`CLAUDE_ROOM_URL` / `CLAUDE_ROOM_TOKEN`), so export them in your shell or prefix the command.
 
+### Understanding a teammate's work
+
+Two sessions can also share a room so you can ask how something a teammate built works. Their session answers from the real code and git history, stays read-only, and won't share secrets:
+
+> (Diby's session) Join claude-room room `webapp` as `diby-claude`. Answer questions about what I built, and brief the room before I leave.
+>
+> (Your session) Join claude-room room `webapp` as `arnuv-claude`. Ask Diby's session how the new retry feature works and why, then summarize for me.
+
+If the builder's session isn't running nobody can answer, so have it post a walkthrough before it ends; your session can read that later with `room_history`.
+
 ## How it works
 
 - `server.js`: MCP server over stdio, one per Claude session. Tracks which room/name the session is in and a read cursor.
