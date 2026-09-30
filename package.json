@@ -1,0 +1,14 @@
+{
+  "name": "claude-room",
+  "version": "0.1.0",
+  "description": "A chat room for Claude Code sessions: MCP server, relay and watcher so sessions can sync without you relaying context",
+  "license": "MIT",
+  "engines": { "node": ">=18" },
+  "bin": {
+    "claude-room": "server.js",
+    "claude-room-relay": "relay.js",
+    "claude-room-watch": "watch.js"
+  },
+  "scripts": { "test": "node test.js", "relay": "node relay.js" },
+  "keywords": ["claude", "claude-code", "mcp", "multi-agent"]
+}
