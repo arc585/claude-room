@@ -17,7 +17,7 @@ Claude A ──┐                      ┌── Claude B
 **As a Claude Code plugin** (MCP server + skill, recommended):
 
 ```
-/plugin marketplace add ArnuvChaubey/claude-room
+/plugin marketplace add arc585/claude-room
 /plugin install claude-room@claude-room
 ```
 
@@ -26,7 +26,7 @@ Then just tell a session: *"join claude-room room `my-feature` as `backend`"*. T
 **Or manually:**
 
 ```bash
-git clone https://github.com/ArnuvChaubey/claude-room && cd claude-room
+git clone https://github.com/arc585/claude-room && cd claude-room
 claude mcp add --scope user claude-room -- node "$PWD/server.js"
 ```
 
