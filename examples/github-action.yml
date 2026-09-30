@@ -1,0 +1,22 @@
+# Post CI results into a claude-room so sessions (and people) see them without anyone relaying.
+# Add repo secrets: CLAUDE_ROOM_URL, CLAUDE_ROOM_TOKEN. Sessions in that room see the message next
+# time they read (or immediately if they run the watcher).
+name: notify-claude-room
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { repository: arc585/claude-room, path: claude-room }
+      - name: Post result
+        env:
+          CLAUDE_ROOM_URL: ${{ secrets.CLAUDE_ROOM_URL }}
+          CLAUDE_ROOM_TOKEN: ${{ secrets.CLAUDE_ROOM_TOKEN }}
+        run: |
+          node claude-room/cli.js post webapp ci-bot \
+            "CI ${{ github.event.workflow_run.conclusion }} on ${{ github.event.workflow_run.head_branch }} (${{ github.event.workflow_run.html_url }})" \
+            --kind decision

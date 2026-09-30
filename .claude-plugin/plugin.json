@@ -1,6 +1,6 @@
 {
   "name": "claude-room",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A chat room for Claude Code sessions: join a room and sessions sync with each other, so you stop relaying context.",
   "author": {
     "name": "Arnuv Chaubey"

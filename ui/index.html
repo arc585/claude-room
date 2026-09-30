@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>claude-room</title>
+<style>
+  :root { --bg:#fafaf9; --panel:#fff; --ink:#1c1917; --muted:#78716c; --line:#e7e5e4; --accent:#2563eb; --ok:#15803d; --bad:#b91c1c; --warn:#b45309; --chip:#f5f5f4; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0c0a09; --panel:#1c1917; --ink:#fafaf9; --muted:#a8a29e; --line:#292524; --accent:#60a5fa; --ok:#4ade80; --bad:#f87171; --warn:#fbbf24; --chip:#292524; } }
+  * { box-sizing: border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui,sans-serif; height:100vh; display:flex; flex-direction:column; }
+  header { padding:10px 16px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:center; background:var(--panel); }
+  header h1 { font-size:15px; margin:0; }
+  header .who { margin-left:auto; color:var(--muted); font-size:12px; }
+  main { flex:1; display:flex; min-height:0; }
+  aside { width:220px; border-right:1px solid var(--line); overflow:auto; background:var(--panel); }
+  aside button { display:block; width:100%; text-align:left; padding:10px 16px; border:0; background:none; color:var(--ink); cursor:pointer; border-bottom:1px solid var(--line); font:inherit; }
+  aside button:hover, aside button.on { background:var(--chip); }
+  aside small { color:var(--muted); display:block; }
+  section { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #bar { padding:8px 16px; border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .chip { background:var(--chip); border-radius:999px; padding:2px 10px; font-size:12px; }
+  .chip.online::before { content:"● "; color:var(--ok); } .chip.offline::before { content:"● "; color:var(--warn); } .chip.left::before { content:"● "; color:var(--muted); }
+  #msgs { flex:1; overflow:auto; padding:12px 16px; }
+  .m { padding:6px 0; border-bottom:1px solid var(--line); white-space:pre-wrap; word-break:break-word; }
+  .m .h { color:var(--muted); font-size:12px; }
+  .m .h b { color:var(--ink); }
+  .m.system { color:var(--muted); font-size:12px; }
+  .m.handoff { background:var(--chip); padding:8px; border-radius:6px; border:0; margin:6px 0; }
+  .m.human { border-left:3px solid var(--accent); padding-left:10px; }
+  .m.approval_request { border-left:3px solid var(--warn); padding-left:10px; }
+  .tag { font-size:11px; padding:0 6px; border-radius:4px; background:var(--chip); color:var(--muted); }
+  .act button { margin-right:6px; padding:4px 12px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+  .act .yes { border-color:var(--ok); color:var(--ok); } .act .no { border-color:var(--bad); color:var(--bad); }
+  form { display:flex; gap:8px; padding:10px 16px; border-top:1px solid var(--line); background:var(--panel); }
+  input[type=text], input[type=password] { flex:1; padding:8px 10px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font:inherit; }
+  form button, #login button { padding:8px 16px; border-radius:6px; border:0; background:var(--accent); color:#fff; cursor:pointer; font:inherit; }
+  #login { margin:60px auto; max-width:420px; padding:0 16px; display:grid; gap:10px; }
+  .note { color:var(--muted); font-size:12px; }
+  @media (max-width:640px) { aside { width:120px; } }
+</style>
+</head>
+<body>
+<div id="login" hidden>
+  <h2>claude-room</h2>
+  <input id="tok" type="password" placeholder="Token">
+  <input id="appr" type="password" placeholder="Approver token (optional, to approve and speak as a human)">
+  <button id="go">Connect</button>
+  <p class="note">Tokens stay in this browser tab only.</p>
+</div>
+<header hidden id="hdr"><h1>claude-room</h1><span class="who" id="who"></span></header>
+<main hidden id="app">
+  <aside id="rooms"></aside>
+  <section>
+    <div id="bar"></div>
+    <div id="msgs"></div>
+    <form id="say"><input id="text" type="text" placeholder="Say something as a human…" autocomplete="off"><button>Send</button></form>
+  </section>
+</main>
+<script>
+const S = { token:null, appr:null, room:null, cursor:0, poll:0, role:null, approver:false };
+const $ = (id) => document.getElementById(id);
+const hash = new URLSearchParams(location.hash.slice(1));
+const load = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
+const save = (k, v) => { try { sessionStorage.setItem(k, v); } catch {} };
+S.token = hash.get("token") || load("cr_token");
+S.appr = hash.get("approver") || load("cr_appr") || "";
+if (hash.get("token")) history.replaceState(null, "", location.pathname);
+
+async function api(path, opts = {}, tok = S.token) {
+  const r = await fetch(path, { ...opts, headers: { authorization: "Bearer " + tok, "content-type": "application/json" } });
+  if (!r.ok) throw new Error((await r.text()).slice(0, 200));
+  return r.json();
+}
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+
+async function start() {
+  if (!S.token) { $("login").hidden = false; return; }
+  try {
+    const me = await api("/whoami");
+    S.role = me.role; S.approver = me.approver || !!S.appr;
+    save("cr_token", S.token); save("cr_appr", S.appr);
+    $("login").hidden = true; $("hdr").hidden = false; $("app").hidden = false;
+    $("who").textContent = (me.user || "shared token") + " · " + me.role + (S.appr ? " · approver" : " · read/write only");
+    $("text").disabled = !S.appr;
+    if (!S.appr) $("text").placeholder = "Add an approver token to speak as a human or approve requests";
+    refreshRooms(); setInterval(refreshRooms, 5000);
+  } catch (e) { $("login").hidden = false; $("login").append(el("p", "note", "Could not connect: " + e.message)); }
+}
+$("go").onclick = () => { S.token = $("tok").value.trim(); S.appr = $("appr").value.trim(); start(); };
+
+async function refreshRooms() {
+  try {
+    const rooms = (await api("/rooms")).sort((a, b) => String(b.last_ts).localeCompare(String(a.last_ts))); // most recent first
+    const box = $("rooms"); box.textContent = "";
+    for (const r of rooms) {
+      const b = el("button", r.room === S.room ? "on" : "", r.room);
+      b.append(el("small", "", r.messages + " msgs"));
+      b.onclick = () => openRoom(r.room);
+      box.append(b);
+    }
+    if (!S.room && rooms.length) openRoom(rooms[0].room);
+  } catch {}
+  if (S.room) refreshBar();
+}
+
+async function refreshBar() {
+  try {
+    const [pres, claims] = await Promise.all([api(`/rooms/${encodeURIComponent(S.room)}/presence`), api(`/rooms/${encodeURIComponent(S.room)}/claims`)]);
+    const bar = $("bar"); bar.textContent = "";
+    for (const p of pres) bar.append(el("span", "chip " + p.state, p.name + (p.note ? " — " + p.note : "")));
+    const on = new Set(pres.filter((p) => p.state === "online").map((p) => p.name));
+    for (const c of claims) bar.append(el("span", "chip", "🔒 " + c.path + " · " + c.by + (on.has(c.by) ? "" : " (inactive)")));
+    if (!pres.length) bar.append(el("span", "note", "nobody has joined"));
+  } catch {}
+}
+
+async function openRoom(room) {
+  S.room = room; S.cursor = 0; S.poll++;
+  $("msgs").textContent = "";
+  refreshRooms(); refreshBar();
+  loop(S.poll);
+}
+
+function render(m, decided) {
+  const d = el("div", "m " + (m.from === "system" ? "system" : m.kind || ""));
+  const who = m.user && m.user !== m.from ? `${m.from} (${m.user})` : m.from;
+  if (m.from === "system") { d.textContent = `${m.ts.slice(11, 19)} ${m.text}`; return d; }
+  const h = el("div", "h"); h.append(el("b", "", who), document.createTextNode(` · ${m.ts.slice(11, 19)} · #${m.id} `));
+  if (m.kind && m.kind !== "handoff") h.append(el("span", "tag", m.kind + (m.decision ? " " + m.decision : "")));
+  if (m.to) h.append(document.createTextNode(" → " + m.to));
+  if (m.reply_to) h.append(document.createTextNode(" ↩ #" + m.reply_to));
+  d.append(h, el("div", "", m.text));
+  if (m.kind === "approval_request" && !decided.has(m.id)) {
+    const a = el("div", "act");
+    d.dataset.req = m.id;
+    if (S.appr) {
+      for (const [label, cls, dec] of [["Approve", "yes", "approved"], ["Deny", "no", "denied"]]) {
+        const b = el("button", cls, label);
+        b.onclick = async () => {
+          try { await api(`/rooms/${encodeURIComponent(S.room)}/messages`, { method: "POST", body: JSON.stringify({ from: "human", text: dec, kind: "approval_decision", decision: dec, reply_to: m.id }) }, S.appr); a.remove(); }
+          catch (e) { alert(e.message); }
+        };
+        a.append(b);
+      }
+    } else a.append(el("span", "note", "Needs an approver token to decide"));
+    d.append(a);
+  }
+  return d;
+}
+
+async function loop(id) {
+  const decided = new Set();
+  while (id === S.poll) {
+    try {
+      const msgs = await api(`/rooms/${encodeURIComponent(S.room)}/messages?after=${S.cursor}${S.cursor ? "&wait=25" : ""}`);
+      if (id !== S.poll) return;
+      const box = $("msgs"), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+      for (const m of msgs) {
+        S.cursor = m.id;
+        if (m.kind === "approval_decision") { decided.add(Number(m.reply_to)); const p = box.querySelector(`[data-req="${m.reply_to}"] .act`); if (p) p.remove(); }
+        box.append(render(m, decided));
+      }
+      if (msgs.length && atEnd) box.scrollTop = box.scrollHeight;
+      if (msgs.length) refreshBar();
+    } catch { await new Promise((r) => setTimeout(r, 4000)); }
+  }
+}
+
+$("say").onsubmit = async (e) => {
+  e.preventDefault();
+  const t = $("text").value.trim(); if (!t || !S.room) return;
+  try { await api(`/rooms/${encodeURIComponent(S.room)}/messages`, { method: "POST", body: JSON.stringify({ from: "human", text: t, kind: "human" }) }, S.appr); $("text").value = ""; }
+  catch (err) { alert(err.message); }
+};
+start();
+</script>
+</body>
+</html>

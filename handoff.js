@@ -6,7 +6,8 @@
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
-const { makeStore, localDir, redact } = require("./lib");
+const { makeStore, redact } = require("./lib");
+const { findMine } = require("./proc");
 
 const run = (cmd, args, cwd) => {
   try {
@@ -15,17 +16,6 @@ const run = (cmd, args, cwd) => {
     return "";
   }
 };
-
-function ancestors(pid) {
-  const out = new Set();
-  let p = pid;
-  for (let i = 0; i < 12 && p > 1; i++) {
-    out.add(p);
-    p = parseInt(run("ps", ["-o", "ppid=", "-p", String(p)]), 10);
-    if (!p) break;
-  }
-  return out;
-}
 
 // Last thing the assistant said in this session (often a wrap-up), from the transcript tail.
 function lastAssistantText(file) {
@@ -78,29 +68,7 @@ function buildNote(member, input) {
     input = JSON.parse(fs.readFileSync(0, "utf8") || "{}");
   } catch {}
 
-  const dir = path.join(localDir(), ".members");
-  let files = [];
-  try {
-    files = fs.readdirSync(dir);
-  } catch {}
-  const now = Date.now();
-  const members = files
-    .map((f) => {
-      const file = path.join(dir, f);
-      try {
-        const st = fs.statSync(file);
-        if (now - st.mtimeMs > 10 * 60 * 1000) return null; // stale: that session died long ago
-        return { file, ...JSON.parse(fs.readFileSync(file, "utf8")) };
-      } catch {
-        return null;
-      }
-    })
-    .filter((m) => m && m.room && m.name);
-
-  // This session's member entry: its MCP server is a child of the same claude process as this hook.
-  const anc = ancestors(process.ppid);
-  let mine = members.filter((m) => anc.has(m.ppid));
-  if (!mine.length && input.cwd) mine = members.filter((m) => path.resolve(m.cwd) === path.resolve(input.cwd));
+  const mine = findMine(input);
   if (!mine.length) return;
 
   const store = makeStore();

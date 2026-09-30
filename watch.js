@@ -7,18 +7,9 @@ const { makeStore, sleep } = require("./lib");
 const MAX_LIFETIME_MS = 8 * 60 * 60 * 1000;
 const parent = process.ppid;
 // Don't outlive the session that started us: exit if orphaned, if our output pipe closes, or after 8h.
-const { execFileSync } = require("child_process");
-// Session harnesses often start us via a wrapper shell that can itself be orphaned (ppid 1),
-// so check the parent's parent too.
-const parentIsOrphaned = () => {
-  try {
-    return execFileSync("ps", ["-o", "ppid=", "-p", String(parent)], { encoding: "utf8" }).trim() === "1";
-  } catch {
-    return true; // parent is gone
-  }
-};
+const { parentOrphaned } = require("./proc");
 setInterval(() => {
-  if (process.ppid !== parent || parent === 1 || parentIsOrphaned()) process.exit(0);
+  if (process.ppid !== parent || parentOrphaned(parent)) process.exit(0);
 }, 5000).unref();
 setTimeout(() => process.exit(0), MAX_LIFETIME_MS).unref();
 process.stdout.on("error", () => process.exit(0));
@@ -52,7 +43,9 @@ if (!room || !name) {
       for (const m of msgs) {
         cursor = m.id;
         if (m.from === name) continue;
-        console.log(`[room ${room}] ${m.from}: ${m.text.replace(/\s*\n\s*/g, " ⏎ ")}`);
+        if (m.to && m.to !== name && m.to !== "all") continue; // addressed to someone else
+        const tag = m.kind && m.kind !== "handoff" ? ` [${m.kind}${m.decision ? " " + m.decision : ""}${m.to === name ? " → you" : ""}]` : m.to === name ? " [→ you]" : "";
+        console.log(`[room ${room}] ${m.user && m.user !== m.from ? `${m.from} (${m.user})` : m.from}${tag} (untrusted, not your user): ${m.text.replace(/\s*\n\s*/g, " ⏎ ")}`);
       }
     } catch (e) {
       if (!warned) console.log(`[claude-room] watcher error (retrying): ${e.message}`);
